@@ -18,7 +18,6 @@ python main.py
 ```
 
 
-
 ## Pruebas
 Este proyecto usa `pytest` para las pruebas unitarias. Ejecuta todas las pruebas con:
 ```bash
