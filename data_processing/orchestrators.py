@@ -182,8 +182,14 @@ def procesar_reporte_rendimiento(input_files, output_dir, output_filename, statu
             except Exception as e_s6: log(f"\n!!! Error Sección 6 (Top Ads): {e_s6} !!!\n{traceback.format_exc()}",importante=True)
 
             log("\n\n============================================================");log("===== Resumen del Proceso =====");log("============================================================")
-            if log_summary_messages_orchestrator: [log(f"  - {re.sub(r'^\s*\[\d{2}:\d{2}:\d{2}\]\s*','',msg).strip().replace('---','-')}") for msg in log_summary_messages_orchestrator if re.sub(r'^\s*\[\d{2}:\d{2}:\d{2}\]\s*','',msg).strip()]
-            else: log("  No se generaron mensajes de resumen.")
+            pattern = r"^\s*\[\d{2}:\d{2}:\d{2}\]\s*"
+            if log_summary_messages_orchestrator:
+                for msg in log_summary_messages_orchestrator:
+                    clean = re.sub(pattern, "", msg).strip().replace("---", "-")
+                    if clean:
+                        log(f"  - {clean}")
+            else:
+                log("  No se generaron mensajes de resumen.")
             log("============================================================")
             log("\n\n--- FIN DEL REPORTE RENDIMIENTO ---",importante=True); status_queue.put("---DONE---")
     except Exception as e_main:
@@ -474,8 +480,14 @@ def procesar_reporte_bitacora(input_files, output_dir, output_filename, status_q
             _generar_tabla_embudo_bitacora(df_daily_total_for_bitacora, bitacora_periods_list, log, detected_currency, period_type=bitacora_comparison_type)
 
             log("\n\n============================================================");log(f"===== Resumen del Proceso (Bitácora {bitacora_comparison_type}) =====");log("============================================================")
-            if log_summary_messages_orchestrator: [log(f"  - {re.sub(r'^\s*\[\d{2}:\d{2}:\d{2}\]\s*','',msg).strip().replace('---','-')}") for msg in log_summary_messages_orchestrator if re.sub(r'^\s*\[\d{2}:\d{2}:\d{2}\]\s*','',msg).strip()]
-            else: log("  No se generaron mensajes de resumen.")
+            pattern = r"^\s*\[\d{2}:\d{2}:\d{2}\]\s*"
+            if log_summary_messages_orchestrator:
+                for msg in log_summary_messages_orchestrator:
+                    clean = re.sub(pattern, "", msg).strip().replace("---", "-")
+                    if clean:
+                        log(f"  - {clean}")
+            else:
+                log("  No se generaron mensajes de resumen.")
             log("============================================================")
             log(f"\n\n--- FIN DEL REPORTE BITÁCORA ({bitacora_comparison_type}) ---", importante=True); status_queue.put("---DONE---")
 
