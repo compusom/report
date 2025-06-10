@@ -503,3 +503,90 @@ def procesar_reporte_bitacora(input_files, output_dir, output_filename, status_q
             except: pass
         try: locale.setlocale(locale.LC_TIME, original_locale_setting)
         except: pass
+def generar_reporte_notion_semana(input_files, output_dir, output_filename, status_queue,
+                                  selected_campaign, selected_adsets, start_date_str):
+    """Genera un reporte semanal en formato Markdown para copiar en Notion."""
+    log_file_handler = None
+    def log(line=""):
+        if log_file_handler and not log_file_handler.closed:
+            try:
+                log_file_handler.write(str(line) + "\n")
+            except Exception as e_write:
+                status_queue.put(f"Error escribiendo log a archivo: {e_write}")
+        status_queue.put(str(line))
+
+    try:
+        start_date = None
+        if start_date_str and date_parse:
+            try:
+                start_date = date_parse(start_date_str, dayfirst=True).date()
+            except Exception as e_par:
+                log(f"Advertencia: fecha de inicio inválida '{start_date_str}' ({e_par}). Se usará la mínima fecha de datos.")
+        log("--- Iniciando Reporte Notion Semanal ---")
+        df_combined, detected_currency, _ = _cargar_y_preparar_datos(input_files, status_queue, selected_campaign)
+        if df_combined is None or df_combined.empty:
+            log("Fallo al cargar datos. Abortando.")
+            status_queue.put("---ERROR---")
+            return
+        if start_date is None:
+            start_date = df_combined['date'].min().date()
+        end_date = start_date + timedelta(days=6)
+        df_week = df_combined[(df_combined['date'].dt.date >= start_date) & (df_combined['date'].dt.date <= end_date)].copy()
+        output_path = os.path.join(output_dir, output_filename)
+        with open(output_path, 'w', encoding='utf-8') as f_out:
+            log_file_handler = f_out
+            log(f"Reporte Notion Semanal {start_date.strftime('%d/%m/%Y')} - {end_date.strftime('%d/%m/%Y')}")
+            log(f"Moneda Detectada: {detected_currency}")
+            df_daily = _agregar_datos_diarios(df_week, status_queue, selected_adsets)
+            if df_daily.empty:
+                log("No hay datos para la semana seleccionada")
+            else:
+                cols_base = ['date','Anuncio','spend','value','purchases','roas','cpa','ctr']
+                cols = [c for c in cols_base if c in df_daily.columns]
+                df_daily_use = df_daily[cols].copy()
+                df_daily_use['Fecha'] = df_daily_use['date'].dt.strftime('%d/%m/%Y')
+                df_daily_use.drop(columns=['date'], inplace=True)
+                df_daily_use.rename(columns={'spend':'Gasto','value':'Ventas','purchases':'Compras',
+                                              'roas':'ROAS','cpa':'CPA','ctr':'CTR'}, inplace=True)
+                df_daily_use['CTR'] = df_daily_use['CTR'] * 100
+
+                def _comentario(row):
+                    roas_v = row.get('ROAS', 0)
+                    if pd.isna(roas_v):
+                        return "Sin datos"
+                    if roas_v >= 2:
+                        return "ROAS excelente"
+                    elif roas_v >= 1:
+                        return "ROAS bueno"
+                    else:
+                        return "ROAS bajo"
+                df_daily_use['Comentario'] = df_daily_use.apply(_comentario, axis=1)
+                from formatting_utils import _format_dataframe_to_markdown
+                _format_dataframe_to_markdown(df_daily_use,
+                                              "An\u00e1lisis Diario Detallado",
+                                              log,
+                                              currency_cols={'Gasto': detected_currency, 'Ventas': detected_currency},
+                                              float_cols_fmt={'ROAS':2,'CPA':2,'CTR':1})
+
+                if 'Campaign' in df_daily.columns:
+                    df_camp = df_daily.groupby('Campaign', as_index=False).agg({
+                        'spend':'sum','value':'sum','purchases':'sum','roas':'mean'})
+                    df_camp['ROAS'] = df_camp['roas']
+                    df_camp.drop(columns=['roas'], inplace=True)
+                    df_camp.rename(columns={'spend':'Gasto','value':'Ventas','purchases':'Compras'}, inplace=True)
+                    _format_dataframe_to_markdown(df_camp.sort_values('ROAS', ascending=False),
+                                                  "Resumen Semanal por Campa\u00f1a",
+                                                  log,
+                                                  currency_cols={'Gasto': detected_currency, 'Ventas': detected_currency},
+                                                  float_cols_fmt={'ROAS':2})
+        status_queue.put("---DONE---")
+    except Exception as e_main_notion:
+        log(f"Error en Reporte Notion Semanal: {e_main_notion}\n{traceback.format_exc()}")
+        status_queue.put("---ERROR---")
+    finally:
+        if log_file_handler and not log_file_handler.closed:
+            try:
+                log_file_handler.close()
+            except:
+                pass
+

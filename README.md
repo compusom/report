@@ -17,7 +17,6 @@ Ejecuta la interfaz gráfica con:
 python main.py
 ```
 
-Desde la ventana podrás seleccionar los archivos de datos y generar reportes de **Bitácora** o **Rendimiento**.
 Los reportes se imprimen en la consola en un formato que puede copiarse a Notion.
 
 ## Pruebas
