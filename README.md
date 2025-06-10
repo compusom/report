@@ -17,10 +17,6 @@ Ejecuta la interfaz gráfica con:
 python main.py
 ```
 
-Desde la ventana podrás seleccionar los archivos de datos y generar reportes de **Bitácora**, **Rendimiento** o un resumen semanal listo para copiar en **Notion**.
-Los reportes se imprimen en la consola en un formato que puede copiarse a Notion.
-Selecciona **"Notion Semanal"** en la interfaz para generar este reporte semanal listo para pegar en Notion.
-
 ## Pruebas
 Este proyecto usa `pytest` para las pruebas unitarias. Ejecuta todas las pruebas con:
 ```bash
