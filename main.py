@@ -70,11 +70,17 @@ if os.path.isdir(data_processing_path_expected):
 # --- Intento de importación INMEDIATO ---
 procesar_reporte_rendimiento_func = None
 procesar_reporte_bitacora_func = None
+generar_reporte_notion_semana_func = None
 try:
     print("\nDEBUG: Intentando: from data_processing.orchestrators import ...")
-    from data_processing.orchestrators import procesar_reporte_rendimiento, procesar_reporte_bitacora
+    from data_processing.orchestrators import (
+        procesar_reporte_rendimiento,
+        procesar_reporte_bitacora,
+        generar_reporte_notion_semana,
+    )
     procesar_reporte_rendimiento_func = procesar_reporte_rendimiento
     procesar_reporte_bitacora_func = procesar_reporte_bitacora
+    generar_reporte_notion_semana_func = generar_reporte_notion_semana
     print("DEBUG: Importación de orchestrators A NIVEL DE MODULO exitosa.")
 except ModuleNotFoundError as e_mnfe:
     print(f"FATAL DEBUG (Importación Nivel Módulo): ModuleNotFoundError: {e_mnfe}")
@@ -198,6 +204,7 @@ class ReportApp:
         report_type_frame = ttk.LabelFrame(main_frame, text="Tipo de Reporte", padding=(10,5)); report_type_frame.grid(row=0, column=0, columnspan=3, sticky="ew", padx=10, pady=5)
         ttk.Radiobutton(report_type_frame, text="Bitácora", variable=self.report_type, value="Bitácora", command=self._on_report_type_change).pack(side=tk.LEFT, padx=10)
         ttk.Radiobutton(report_type_frame, text="Rendimiento Detallado", variable=self.report_type, value="Rendimiento", command=self._on_report_type_change).pack(side=tk.LEFT, padx=10)
+        ttk.Radiobutton(report_type_frame, text="Notion Semanal", variable=self.report_type, value="NotionSemanal", command=self._on_report_type_change).pack(side=tk.LEFT, padx=10)
         
         input_frame = ttk.LabelFrame(main_frame, text="1. Archivos de Datos (Excel/CSV)", padding=(10, 5)); input_frame.grid(row=1, column=0, columnspan=3, sticky="ew", padx=10, pady=(5, 10)); input_frame.columnconfigure(0, weight=1)
         listbox_frame = ttk.Frame(input_frame); listbox_frame.grid(row=0, column=0, sticky="nsew", pady=5); listbox_frame.rowconfigure(0, weight=1); listbox_frame.columnconfigure(0, weight=1)
@@ -307,11 +314,13 @@ class ReportApp:
 
     def _set_default_filename(self):
         rt = self.report_type.get()
-        comp_type = self.bitacora_comparison_type.get() if rt == "Bitácora" else ""
+        comp_type = self.bitacora_comparison_type.get() if rt in ["Bitácora", "NotionSemanal"] else ""
         ts = datetime.now().strftime("%Y%m%d_%H%M")
 
         if rt == "Bitácora":
             fn = f"reporte_bitacora_{comp_type.lower()}_{ts}.txt"
+        elif rt == "NotionSemanal":
+            fn = f"reporte_notion_semanal_{ts}.txt"
         elif rt == "Rendimiento":
             fn = f"reporte_rendimiento_{ts}.txt"
         else:
@@ -320,12 +329,21 @@ class ReportApp:
 
     def _on_report_type_change(self):
         self._set_default_filename()
-        is_bitacora = (self.report_type.get() == "Bitácora")
+        rt_val = self.report_type.get()
+        is_bitacora = (rt_val == "Bitácora")
+        is_notion = (rt_val == "NotionSemanal")
 
         if hasattr(self, 'bitacora_settings_frame') and self.bitacora_settings_frame.winfo_exists():
-            if is_bitacora:
+            if is_bitacora or is_notion:
                 self.bitacora_settings_frame.grid()
-                self._on_bitacora_comparison_change() 
+                if is_notion:
+                    self.bitacora_comparison_type.set("Weekly")
+                    for rb in (self.rb_weekly, self.rb_monthly):
+                        rb.configure(state='disabled')
+                else:
+                    for rb in (self.rb_weekly, self.rb_monthly):
+                        rb.configure(state='normal')
+                self._on_bitacora_comparison_change()
             else:
                 self.bitacora_settings_frame.grid_remove()
 
@@ -772,11 +790,18 @@ class ReportApp:
                     else:
                          self._update_status("Bitácora Semanal: No se especificó semana válida. Se usará detección automática en backend.")
                 
-                target_func=procesar_reporte_bitacora_func; 
-                args_tuple=(self.input_files.copy(), out_dir, out_file, self.status_queue, 
-                            camp_proc, adsets_proc_list, 
-                            selected_week_start_str, selected_week_end_str, 
+                target_func=procesar_reporte_bitacora_func
+                args_tuple=(self.input_files.copy(), out_dir, out_file, self.status_queue,
+                            camp_proc, adsets_proc_list,
+                            selected_week_start_str, selected_week_end_str,
                             bitacora_comp_type)
+
+            elif rep_type=="NotionSemanal":
+                selected_week_start_str = self.bitacora_selected_week_start_date_var.get()
+                target_func=generar_reporte_notion_semana_func
+                args_tuple=(self.input_files.copy(), out_dir, out_file, self.status_queue,
+                            camp_proc, adsets_proc_list,
+                            selected_week_start_str)
 
             elif rep_type=="Rendimiento":
                 target_func=procesar_reporte_rendimiento_func; 
@@ -792,6 +817,8 @@ class ReportApp:
         self._update_status(f"🚀 Iniciando Reporte {rep_type} | Campaña: {camp_log} | AdSet(s): {adset_log}...");
         if rep_type == "Bitácora":
             self._update_status(f"   Tipo de comparación de Bitácora: {self.bitacora_comparison_type.get()}");
+        elif rep_type == "NotionSemanal":
+            self._update_status("   Reporte semanal para Notion")
 
         self._update_status(f"   Salida: {os.path.join(out_dir,out_file)}"); self._update_status("   Por favor, espera...")
         self.processing_thread=threading.Thread(target=target_func,args=args_tuple,daemon=True); self.processing_thread.start()
