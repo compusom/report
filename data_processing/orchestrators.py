@@ -503,8 +503,6 @@ def procesar_reporte_bitacora(input_files, output_dir, output_filename, status_q
             except: pass
         try: locale.setlocale(locale.LC_TIME, original_locale_setting)
         except: pass
-
-
 def generar_reporte_notion_semana(input_files, output_dir, output_filename, status_queue,
                                   selected_campaign, selected_adsets, start_date_str):
     """Genera un reporte semanal en formato Markdown para copiar en Notion."""
@@ -591,3 +589,4 @@ def generar_reporte_notion_semana(input_files, output_dir, output_filename, stat
                 log_file_handler.close()
             except:
                 pass
+
